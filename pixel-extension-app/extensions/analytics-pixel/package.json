@@ -1,0 +1,16 @@
+{
+  "name": "analytics-pixel",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@shopify/web-pixels-extension": "^2.18.0"
+  }
+}
