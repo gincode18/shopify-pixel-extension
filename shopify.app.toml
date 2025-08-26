@@ -1,0 +1,27 @@
+# This file stores configurations for your Shopify app.
+
+name = "my-pixel-app"
+client_id = "{{ SHOPIFY_API_KEY }}"
+application_url = "{{ APPLICATION_URL }}"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "{{ DEVELOPMENT_STORE_URL }}"
+include_config_on_deploy = true
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "write_pixels,read_customer_events"
+
+[app_proxy]
+# Uncomment the following line to enable app proxy
+# url = "/proxy"
+# subpath = "proxy"
+# prefix = "apps"
+
+[pos]
+embedded = false
+
+[webhooks]
+api_version = "2025-01"
