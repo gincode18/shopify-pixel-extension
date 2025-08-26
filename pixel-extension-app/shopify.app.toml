@@ -3,7 +3,7 @@
 client_id = "181a611e074aaa1904c7ed0b88ce4952"
 name = "pixel-extension-app"
 application_url = "https://poc-shopify-wheat.vercel.app"
-embedded = true
+embedded = false
 handle = "pixel-extension-app"
 
 [build]
