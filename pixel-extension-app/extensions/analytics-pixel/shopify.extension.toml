@@ -3,10 +3,10 @@ name = "analytics-pixel"
 runtime_context = "strict"
 
 [customer_privacy]
-analytics = true
-marketing = true
+analytics = false
+marketing = false
 preferences = false
-sale_of_data = "enabled"
+sale_of_data = "disabled"
 
 [settings]
 type = "object"

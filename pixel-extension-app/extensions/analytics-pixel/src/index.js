@@ -8,6 +8,10 @@ register(async ({ analytics, browser, settings }) => {
   console.log('Custom pixel script loaded for shop:', shopName);
   console.log('Initializing custom pixel analytics');
   console.log('Webhook URL:', webhookUrl);
+  
+  // Log consent status for debugging
+  console.log('Pixel is running, which means consent has been granted or is not required');
+  console.log('If you see this message in testing but the pixel still shows "awaiting consent", refresh the page');
 
   // Subscribe to all Shopify events
   analytics.subscribe('all_events', async (event) => {
