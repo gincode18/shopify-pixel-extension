@@ -1,5 +1,14 @@
 import { register } from '@shopify/web-pixels-extension';
 
+// Generate a UUID v4 function
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 register(async ({ analytics, browser, settings }) => {
   // Get the webhook URL from settings, fallback to your default endpoint
   const webhookUrl = settings.webhookUrl || 'https://poc-shopify-wheat.vercel.app/webhook/shopify-events';
@@ -8,6 +17,38 @@ register(async ({ analytics, browser, settings }) => {
   console.log('Custom pixel script loaded for shop:', shopName);
   console.log('Initializing custom pixel analytics');
   console.log('Webhook URL:', webhookUrl);
+  
+  // Check for muid cookie and create one if it doesn't exist
+  let muid;
+  try {
+    muid = await browser.cookie.get('muid');
+    console.log('Found existing muid cookie:', muid);
+    
+    if (!muid) {
+      muid = generateUUID();
+      console.log('Generated new muid:', muid);
+      // Set cookie with 1 year expiry
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      await browser.cookie.set(`muid=${muid}; expires=${expiryDate.toUTCString()}; path=/`);
+      console.log('Set new muid cookie');
+    }
+  } catch (error) {
+    console.error('Error handling muid cookie:', error);
+    // Fallback to generating a new ID if there's an error
+    muid = generateUUID();
+  }
+  
+  // Get all cookies for debugging and analysis
+  let allCookies = {};
+  try {
+    // This is a simplified approach - in a real implementation you would need to 
+    // parse document.cookie which isn't directly accessible in the sandbox
+    // Here we're just demonstrating the concept
+    console.log('Using muid for user identification:', muid);
+  } catch (error) {
+    console.error('Error retrieving cookies:', error);
+  }
   
   // Log consent status for debugging
   console.log('Pixel is running, which means consent has been granted or is not required');
@@ -26,6 +67,7 @@ register(async ({ analytics, browser, settings }) => {
         eventData: event,
         customerId: event.customerId || null,
         clientId: event.clientId || null,
+        muid: muid, // Include the muid in the payload
         url: event.context?.document?.url || null,
         userAgent: event.context?.navigator?.userAgent || null,
         pixelId: event.pixelEventLabel || null,
