@@ -196,6 +196,11 @@ function extractProducts(eventData, initData = null) {
 
 // Calculate total value from products or event data
 function calculateValue(eventData, products) {
+  // Check data.checkout path first (for new checkout events)
+  if (eventData.data?.checkout?.totalPrice?.amount) {
+    return parseFloat(eventData.data.checkout.totalPrice.amount);
+  }
+  
   if (eventData.checkout?.totalPrice?.amount) {
     return parseFloat(eventData.checkout.totalPrice.amount);
   }
@@ -226,7 +231,8 @@ function calculateValue(eventData, products) {
 
 // Get currency from event data
 function getCurrency(eventData) {
-  return eventData.checkout?.currencyCode ||
+  return eventData.data?.checkout?.currencyCode ||
+         eventData.checkout?.currencyCode ||
          eventData.cart?.cost?.totalAmount?.currencyCode ||
          eventData.cartLine?.cost?.totalAmount?.currencyCode ||
          eventData.cartLine?.merchandise?.price?.currencyCode ||
@@ -316,10 +322,12 @@ register(async ({ analytics, browser, settings, init }) => {
       const currency = getCurrency(event);
       
       // Build base MarkTag common attributes
+      const pageUrl = event.context?.window?.location?.href || event.context?.document?.location?.href || event.context?.document?.url || '';
+      
       const commonAttributes = {
         event: markTagEventType,
         event_source: 'shopify_pixel',
-        pageUrl: event.context?.document?.url || '',
+        pageUrl: pageUrl,
         email: event.context?.customer?.email || allCookies.email || undefined,
         phone: event.context?.customer?.phone || allCookies.phone || undefined,
         mt_ref_src: event.context?.document?.referrer || undefined,
@@ -343,14 +351,34 @@ register(async ({ analytics, browser, settings, init }) => {
           break;
           
         case 'Purchase':
+          // Extract shipping address from correct data path for Purchase events
+          const purchaseShippingAddress = event.data?.checkout?.shippingAddress || event.checkout?.shippingAddress || event.shippingAddress;
+          const purchaseShippingLine = event.data?.checkout?.shippingLine || event.checkout?.shippingLine || event.shippingLine;
+          
           eventPayload = {
             ...eventPayload,
             value: value,
             currency: currency,
             products: products,
-            transaction_id: event.checkout?.token || event.id?.toString(),
-            tax: event.checkout?.totalTax?.amount ? parseFloat(event.checkout.totalTax.amount) : undefined,
-            shipping_cost: event.checkout?.shippingLine?.price?.amount ? parseFloat(event.checkout.shippingLine.price.amount) : undefined
+            transaction_id: event.checkout?.token || event.data?.checkout?.token || event.id?.toString(),
+            tax: event.data?.checkout?.totalTax?.amount ? parseFloat(event.data.checkout.totalTax.amount) : 
+                 event.checkout?.totalTax?.amount ? parseFloat(event.checkout.totalTax.amount) : undefined,
+            shipping_cost: purchaseShippingLine?.price?.amount ? parseFloat(purchaseShippingLine.price.amount) : undefined,
+            // Extract shipping address information
+            shipping_address: {
+              first_name: purchaseShippingAddress?.firstName || undefined,
+              last_name: purchaseShippingAddress?.lastName || undefined,
+              company: purchaseShippingAddress?.company || undefined,
+              address1: purchaseShippingAddress?.address1 || undefined,
+              address2: purchaseShippingAddress?.address2 || undefined,
+              city: purchaseShippingAddress?.city || undefined,
+              province: purchaseShippingAddress?.province || undefined,
+              province_code: purchaseShippingAddress?.provinceCode || undefined,
+              country: purchaseShippingAddress?.country || undefined,
+              country_code: purchaseShippingAddress?.countryCode || undefined,
+              zip: purchaseShippingAddress?.zip || undefined,
+              phone: purchaseShippingAddress?.phone || undefined
+            }
           };
           break;
           
@@ -362,7 +390,16 @@ register(async ({ analytics, browser, settings, init }) => {
             value: value,
             products: products,
             tax: event.checkout?.totalTax?.amount ? parseFloat(event.checkout.totalTax.amount) : undefined,
-            shipping_cost: event.checkout?.shippingLine?.price?.amount ? parseFloat(event.checkout.shippingLine.price.amount) : undefined
+            shipping_cost: event.checkout?.shippingLine?.price?.amount ? parseFloat(event.checkout.shippingLine.price.amount) : undefined,
+            // Extract shipping address information
+            shipping_address: {
+              country: event.checkout?.shippingAddress?.country || event.shippingAddress?.country || undefined,
+              country_code: event.checkout?.shippingAddress?.countryCode || event.shippingAddress?.countryCode || undefined,
+              province: event.checkout?.shippingAddress?.province || event.shippingAddress?.province || undefined,
+              province_code: event.checkout?.shippingAddress?.provinceCode || event.shippingAddress?.provinceCode || undefined,
+              city: event.checkout?.shippingAddress?.city || event.shippingAddress?.city || undefined,
+              zip: event.checkout?.shippingAddress?.zip || event.shippingAddress?.zip || undefined
+            }
           };
           break;
           
@@ -395,10 +432,39 @@ register(async ({ analytics, browser, settings, init }) => {
         case 'AddPaymentInfo':
           eventPayload = {
             ...eventPayload,
-            payment_type: event.paymentMethod?.type || undefined,
+            payment_type: event.paymentMethod?.type || event.checkout?.paymentMethod || undefined,
             value: value.toString(),
             currency: currency,
             products: products
+          };
+          break;
+          
+        case 'AddShippingInfo':
+          // Extract shipping address from correct data path
+          const shippingAddress = event.data?.checkout?.shippingAddress || event.checkout?.shippingAddress || event.shippingAddress;
+          const shippingLine = event.data?.checkout?.shippingLine || event.checkout?.shippingLine || event.shippingLine;
+          
+          eventPayload = {
+            ...eventPayload,
+            shipping_tier: shippingLine?.title || event.shippingRate?.title || undefined,
+            value: value.toString(),
+            currency: currency,
+            products: products,
+            // Extract shipping address information
+            shipping_address: {
+              first_name: shippingAddress?.firstName || undefined,
+              last_name: shippingAddress?.lastName || undefined,
+              company: shippingAddress?.company || undefined,
+              address1: shippingAddress?.address1 || undefined,
+              address2: shippingAddress?.address2 || undefined,
+              city: shippingAddress?.city || undefined,
+              province: shippingAddress?.province || undefined,
+              province_code: shippingAddress?.provinceCode || undefined,
+              country: shippingAddress?.country || undefined,
+              country_code: shippingAddress?.countryCode || undefined,
+              zip: shippingAddress?.zip || undefined,
+              phone: shippingAddress?.phone || undefined
+            }
           };
           break;
           
@@ -420,7 +486,7 @@ register(async ({ analytics, browser, settings, init }) => {
         ttp: allCookies.ttp,
         fbc: allCookies._fbc,
         fbp: allCookies._fbp,
-        url: event.context?.document?.url || '',
+        url: pageUrl,
         referrer: event.context?.document?.referrer || '',
         user_agent: event.context?.navigator?.userAgent || '',
         event_time: new Date(),
@@ -461,6 +527,35 @@ register(async ({ analytics, browser, settings, init }) => {
         .map(([name, value]) => `${name}=${value}`)
         .join('; `');
       console.log('Cookie header:', cookieHeader);
+
+      // Validate payload before sending
+      if (!payload.event || !payload.pageUrl) {
+        console.warn('⚠️ Invalid payload detected - missing required fields:', {
+          hasEvent: !!payload.event,
+          hasPageUrl: !!payload.pageUrl,
+          eventName: event.name,
+          eventId: event.id
+        });
+        console.log('📋 Full event data for debugging:', JSON.stringify(event, null, 2));
+        return; // Don't send invalid payloads
+      }
+
+      console.log(`🚀 Sending ${markTagEventType} event (from ${event.name})`);
+      console.log('📍 Page URL:', pageUrl);
+      console.log('💰 Value:', value, currency);
+      console.log('🛍️ Products:', products.length);
+      
+      // Debug shipping address extraction for AddShippingInfo events
+      if (markTagEventType === 'AddShippingInfo') {
+        console.log('🚢 Shipping Debug Info:');
+        console.log('  - event.data?.checkout?.shippingAddress:', event.data?.checkout?.shippingAddress);
+        console.log('  - event.checkout?.shippingAddress:', event.checkout?.shippingAddress);
+        console.log('  - event.shippingAddress:', event.shippingAddress);
+        console.log('  - event.data?.checkout?.shippingLine:', event.data?.checkout?.shippingLine);
+      }
+      
+      // Detailed payload logging for debugging
+      console.log('📦 Complete Payload:', JSON.stringify(payload, null, 2));
       
       // Send to webhook endpoint
       const response = await fetch(webhookUrl, {
@@ -475,13 +570,25 @@ register(async ({ analytics, browser, settings, init }) => {
       });
 
       if (!response.ok) {
-        console.error('Failed to send MarkTag event to webhook. Status:', response.status);
-        console.error('Event type:', markTagEventType, 'Original:', event.name);
+        console.error('❌ Failed to send MarkTag event to webhook. Status:', response.status);
+        console.error('🔴 Event type:', markTagEventType, 'Original:', event.name);
+        console.error('📋 Failed payload:', JSON.stringify(payload, null, 2));
+        
+        // Try to get response text for more details
+        try {
+          const errorText = await response.text();
+          console.error('🔍 Server error details:', errorText);
+        } catch (e) {
+          console.error('📝 Could not read server error details');
+        }
       } else {
-        console.log('MarkTag event successfully sent:', markTagEventType, '(from', event.name + ')');
+        console.log('✅ MarkTag event successfully sent:', markTagEventType, '(from', event.name + ')');
+        console.log('📊 Payload size:', JSON.stringify(payload).length, 'bytes');
       }
     } catch (error) {
-      console.error('Failed to send MarkTag event to webhook:', error);
+      console.error('💥 Exception while processing MarkTag event:', error);
+      console.error('🔍 Event that caused error:', JSON.stringify(event, null, 2));
+      console.error('📊 Stack trace:', error.stack);
     }
   });
 
