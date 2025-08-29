@@ -20,16 +20,32 @@ function generateUUID() {
 // Map Shopify events to MarkTag event types
 function mapShopifyToMarkTagEvent(shopifyEventName, eventData) {
   const eventMappings = {
+    // Cart events
     'product_added_to_cart': 'AddToCart',
+    'product_removed_from_cart': 'RemoveFromCart',
+    'cart_viewed': 'ViewCart',
+    
+    // Checkout events
     'checkout_started': 'BeginCheckout',
     'checkout_completed': 'Purchase',
+    'checkout_address_info_submitted': 'AddShippingInfo',
+    'checkout_contact_info_submitted': 'CompleteRegistration',
+    'checkout_shipping_info_submitted': 'AddShippingInfo',
     'payment_info_submitted': 'AddPaymentInfo',
+    
+    // Product and content events
     'product_viewed': 'ViewItem',
-    'cart_viewed': 'ViewCart',
+    'collection_viewed': 'ViewContent',
     'page_viewed': 'ViewContent',
     'search_submitted': 'Search',
+    
+    // Account events
     'account_created': 'Signup',
-    'login': 'Login'
+    'login': 'Login',
+    
+    // Other events
+    'alert_displayed': 'ViewContent',
+    'ui_extension_errored': 'ViewContent'
   };
   
   return eventMappings[shopifyEventName] || 'ViewContent';
@@ -41,6 +57,19 @@ function extractProducts(eventData, initData = null) {
   
   const products = [];
   console.log("extractProducts", eventData, initData);
+  
+  // Handle single cartLine (product_removed_from_cart, etc.)
+  if (eventData?.cartLine) {
+    products.push({
+      id: eventData.cartLine.merchandise?.id?.toString(),
+      name: eventData.cartLine.merchandise?.product?.title,
+      category: eventData.cartLine.merchandise?.product?.type,
+      variant: eventData.cartLine.merchandise?.title,
+      quantity: eventData.cartLine.quantity,
+      price: eventData.cartLine.merchandise?.price ? parseFloat(eventData.cartLine.merchandise.price.amount) : undefined,
+      description: eventData.cartLine.merchandise?.product?.description
+    });
+  }
   
   // Handle single product (product_viewed, etc.)
   if (eventData?.variant) {
@@ -175,6 +204,11 @@ function calculateValue(eventData, products) {
     return parseFloat(eventData.cart.cost.totalAmount.amount);
   }
   
+  // Handle cartLine data structure (product_removed_from_cart, etc.)
+  if (eventData.cartLine?.cost?.totalAmount?.amount) {
+    return parseFloat(eventData.cartLine.cost.totalAmount.amount);
+  }
+  
   if (eventData.variant?.price?.amount) {
     const quantity = eventData.quantity || 1;
     return parseFloat(eventData.variant.price.amount) * quantity;
@@ -194,6 +228,8 @@ function calculateValue(eventData, products) {
 function getCurrency(eventData) {
   return eventData.checkout?.currencyCode ||
          eventData.cart?.cost?.totalAmount?.currencyCode ||
+         eventData.cartLine?.cost?.totalAmount?.currencyCode ||
+         eventData.cartLine?.merchandise?.price?.currencyCode ||
          eventData.variant?.price?.currencyCode ||
          'USD';
 }
@@ -419,13 +455,20 @@ register(async ({ analytics, browser, settings, init }) => {
         page_title: event.context?.document?.title || null,
         page_location: event.context?.window?.location || null
       };
+
+      // Create cookie header string from all captured cookies
+      const cookieHeader = Object.entries(allCookies)
+        .map(([name, value]) => `${name}=${value}`)
+        .join('; `');
+      console.log('Cookie header:', cookieHeader);
       
       // Send to webhook endpoint
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': 'Shopify-Pixel-Extension/1.0'
+          'User-Agent': 'Shopify-Pixel-Extension/1.0',
+          'Cookie': cookieHeader,
         },
         body: JSON.stringify(payload),
         keepalive: true,
@@ -442,21 +485,8 @@ register(async ({ analytics, browser, settings, init }) => {
     }
   });
 
-  // Subscribe to specific high-value events for additional processing
-  const highValueEvents = [
-    'product_viewed', 
-    'product_added_to_cart',
-    'checkout_started',
-    'checkout_completed',
-    'payment_info_submitted'
-  ];
-
-  highValueEvents.forEach(eventName => {
-    analytics.subscribe(eventName, (event) => {
-      const markTagType = mapShopifyToMarkTagEvent(eventName, event);
-      console.log(`High-value MarkTag event: ${markTagType} (from ${eventName})`, event);
-    });
-  });
+  // No need for specific event subscriptions since we're capturing all events via 'all_events'
+  // All Shopify standard events are now properly mapped and handled
   
   console.log('MarkTag-compatible pixel initialized successfully');
   console.log('Subscribed to all_events with MarkTag formatting');
