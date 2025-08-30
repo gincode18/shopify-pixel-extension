@@ -764,6 +764,7 @@ register(async ({ analytics, browser, settings, init }) => {
           "Content-Type": "application/json",
           "User-Agent": "Shopify-Pixel-Extension/1.0",
           Cookie: cookieHeader,
+          hostname: shopName,
         },
         body: JSON.stringify(payload),
         keepalive: true,
