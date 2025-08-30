@@ -700,6 +700,9 @@ register(async ({ analytics, browser, settings, init }) => {
         page_location: event.context?.window?.location || null,
       };
 
+      // set muid to muid
+      allCookies._muid=muid
+
       // Create cookie header string from all captured cookies
       const cookieHeader = Object.entries(allCookies)
         .map(([name, value]) => `${name}=${value}`)
